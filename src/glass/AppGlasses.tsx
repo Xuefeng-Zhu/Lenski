@@ -78,7 +78,7 @@ export function AppGlasses() {
   }, [])
 
   const handleEnterRating = useCallback(() => {
-    setRatingIndex(1) // default to Good
+    setRatingIndex(0) // default to Hard — user needed to flip
     setPhase('rating')
   }, [])
 
@@ -93,7 +93,7 @@ export function AppGlasses() {
     }
     // Move to next/prev card, reset to front
     setPhase('front')
-    setRatingIndex(1)
+    setRatingIndex(0)
     if (direction === 'next') {
       setCardIndex((prev) => Math.min(prev + 1, dueCards.length - 1))
     } else {
@@ -101,22 +101,26 @@ export function AppGlasses() {
     }
   }, [currentCard, reviewCard, ratingIndex, dueCards.length])
 
-  // Browse (up/down on front or back) — auto-rate Good if on back
+  // Browse from front — user knew it, rate Easy
   const handleNextCard = useCallback(() => {
-    if (phaseRef.current === 'back' && currentCard) {
-      reviewCard(currentCard.id, 4) // auto-rate Good
+    if (phaseRef.current === 'front' && currentCard) {
+      reviewCard(currentCard.id, 5) // Easy — knew without flipping
+    } else if (phaseRef.current === 'back' && currentCard) {
+      reviewCard(currentCard.id, 2) // Hard — needed to see answer
     }
     setPhase('front')
-    setRatingIndex(1)
+    setRatingIndex(0) // default to Hard for next card
     setCardIndex((prev) => Math.min(prev + 1, dueCards.length - 1))
   }, [currentCard, reviewCard, dueCards.length])
 
   const handlePrevCard = useCallback(() => {
-    if (phaseRef.current === 'back' && currentCard) {
-      reviewCard(currentCard.id, 4) // auto-rate Good
+    if (phaseRef.current === 'front' && currentCard) {
+      reviewCard(currentCard.id, 5) // Easy
+    } else if (phaseRef.current === 'back' && currentCard) {
+      reviewCard(currentCard.id, 2) // Hard
     }
     setPhase('front')
-    setRatingIndex(1)
+    setRatingIndex(0)
     setCardIndex((prev) => Math.max(prev - 1, 0))
   }, [currentCard, reviewCard])
 
@@ -126,20 +130,24 @@ export function AppGlasses() {
     setSelectedDeckId(deckId)
     setCardIndex(0)
     setPhase('front')
-    setRatingIndex(1)
+    setRatingIndex(0)
     setMode('study')
   }, [])
 
   const handleBackToPicker = useCallback(() => {
-    // Auto-rate if leaving from back phase
-    if (phaseRef.current === 'back' && currentCard) {
-      reviewCard(currentCard.id, 4)
+    if (currentCard) {
+      if (phaseRef.current === 'front') {
+        reviewCard(currentCard.id, 5) // Easy — didn't need to flip
+      } else if (phaseRef.current === 'back') {
+        reviewCard(currentCard.id, 2) // Hard — needed answer
+      }
+      // If in rating phase, don't auto-rate — user abandoned the rating
     }
     setMode('deckPicker')
     setSelectedDeckId('')
     setCardIndex(0)
     setPhase('front')
-    setRatingIndex(1)
+    setRatingIndex(0)
   }, [currentCard, reviewCard])
 
   const ctxRef = useRef<AppActions>({

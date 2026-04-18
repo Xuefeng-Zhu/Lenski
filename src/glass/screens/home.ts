@@ -78,7 +78,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
           ...wrapText(snapshot.front, 34).map((l) => line(l)),
           line(''),
           separator(),
-          line('Tap: flip  \u2191\u2193 browse', 'meta'),
+          line('Tap: flip  \u2191\u2193 next (Easy)', 'meta'),
         ],
       }
     }
@@ -92,7 +92,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
           ...wrapText(snapshot.back, 34).map((l) => line(l)),
           line(''),
           separator(),
-          line('Tap: rate  \u2191\u2193 browse', 'meta'),
+          line('Tap: rate  \u2191\u2193 next (Hard)', 'meta'),
         ],
       }
     }
