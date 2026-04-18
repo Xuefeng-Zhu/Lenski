@@ -5,7 +5,7 @@ import { useFlashPhase } from 'even-toolkit/useFlashPhase'
 import { createScreenMapper, getHomeTiles } from 'even-toolkit/glass-router'
 import { appSplash } from './splash'
 import { toDisplayData, onGlassAction, type AppSnapshot } from './selectors'
-import type { AppActions } from './shared'
+import type { AppActions, GlassMode } from './shared'
 import type { Rating } from '../types'
 import { useFlashcards } from '../contexts/FlashcardContext'
 
@@ -21,24 +21,39 @@ export function AppGlasses() {
   const { getDueCards, reviewCard, decks } = useFlashcards()
   const flashPhase = useFlashPhase(deriveScreen(location.pathname) === 'home')
 
+  const [mode, setMode] = useState<GlassMode>('deckPicker')
+  const [selectedDeckId, setSelectedDeckId] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [cardIndex, setCardIndex] = useState(0)
 
-  const dueCards = getDueCards()
-  const currentCard = dueCards[cardIndex] ?? null
+  const dueCards = getDueCards(selectedDeckId || undefined)
+  const currentCard = mode === 'study' ? (dueCards[cardIndex] ?? null) : null
   const deckName = currentCard
     ? (decks.find((d) => d.id === currentCard.deckId)?.name ?? 'Cards')
-    : ''
+    : (selectedDeckId ? (decks.find((d) => d.id === selectedDeckId)?.name ?? 'Cards') : 'All Decks')
+
+  // Build deck options for the picker
+  const deckOptions = useMemo(() =>
+    decks.map((d) => ({
+      id: d.id,
+      name: d.name,
+      due: getDueCards(d.id).length,
+    })),
+    [decks, getDueCards],
+  )
 
   const snapshotRef = useMemo(() => ({
     current: null as AppSnapshot | null,
   }), [])
 
   const snapshot: AppSnapshot = {
+    mode,
+    deckOptions,
+    selectedDeckId,
     front: currentCard?.front ?? '',
     back: currentCard?.back ?? '',
     revealed,
-    remaining: dueCards.length - cardIndex,
+    remaining: mode === 'study' ? dueCards.length - cardIndex : 0,
     deckName,
     cardId: currentCard?.id ?? '',
     flashPhase,
@@ -55,7 +70,6 @@ export function AppGlasses() {
     if (!currentCard) return
     reviewCard(currentCard.id, rating)
     setRevealed(false)
-    // Move to next card (the reviewed card will drop out of dueCards)
     setCardIndex((prev) => Math.min(prev, Math.max(0, dueCards.length - 2)))
   }, [currentCard, reviewCard, dueCards.length])
 
@@ -64,8 +78,36 @@ export function AppGlasses() {
     setCardIndex((prev) => Math.min(prev + 1, dueCards.length - 1))
   }, [dueCards.length])
 
-  const ctxRef = useRef<AppActions>({ navigate, reveal: handleReveal, rate: handleRate, nextCard: handleNextCard })
-  ctxRef.current = { navigate, reveal: handleReveal, rate: handleRate, nextCard: handleNextCard }
+  const handleSelectDeck = useCallback((deckId: string) => {
+    setSelectedDeckId(deckId)
+    setCardIndex(0)
+    setRevealed(false)
+    setMode('study')
+  }, [])
+
+  const handleBackToPicker = useCallback(() => {
+    setMode('deckPicker')
+    setSelectedDeckId('')
+    setCardIndex(0)
+    setRevealed(false)
+  }, [])
+
+  const ctxRef = useRef<AppActions>({
+    navigate,
+    reveal: handleReveal,
+    rate: handleRate,
+    nextCard: handleNextCard,
+    selectDeck: handleSelectDeck,
+    backToPicker: handleBackToPicker,
+  })
+  ctxRef.current = {
+    navigate,
+    reveal: handleReveal,
+    rate: handleRate,
+    nextCard: handleNextCard,
+    selectDeck: handleSelectDeck,
+    backToPicker: handleBackToPicker,
+  }
 
   const handleGlassAction = useCallback(
     (action: Parameters<typeof onGlassAction>[0], nav: Parameters<typeof onGlassAction>[1], snap: AppSnapshot) =>

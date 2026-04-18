@@ -1,9 +1,62 @@
 import type { GlassScreen } from 'even-toolkit/glass-screen-router'
 import { line, separator, glassHeader } from 'even-toolkit/types'
+import { moveHighlight } from 'even-toolkit/glass-nav'
 import type { AppSnapshot, AppActions } from '../shared'
 
 export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
-  display(snapshot) {
+  display(snapshot, nav) {
+    // ── Deck picker mode ──
+    if (snapshot.mode === 'deckPicker') {
+      const options = snapshot.deckOptions
+      if (options.length === 0) {
+        return {
+          lines: [
+            ...glassHeader('LENSKI'),
+            line(''),
+            line('No decks yet!'),
+            line(''),
+            line('Add decks on your phone.'),
+          ],
+        }
+      }
+
+      const totalDue = options.reduce((s, d) => s + d.due, 0)
+      const items = [
+        { label: 'All Decks', due: totalDue },
+        ...options.map((d) => ({ label: d.name, due: d.due })),
+      ]
+
+      const maxVisible = 6
+      const highlighted = nav.highlightedIndex
+      // Scroll window
+      let scrollTop = 0
+      if (highlighted >= maxVisible) {
+        scrollTop = highlighted - maxVisible + 1
+      }
+      const visible = items.slice(scrollTop, scrollTop + maxVisible)
+
+      const lines = [
+        ...glassHeader('LENSKI  Select Deck'),
+      ]
+
+      for (let i = 0; i < visible.length; i++) {
+        const item = visible[i]
+        const idx = scrollTop + i
+        const isHighlighted = idx === highlighted
+        const prefix = isHighlighted ? '\u25B6 ' : '  '
+        const dueStr = item.due > 0 ? ` (${item.due})` : ''
+        lines.push(line(`${prefix}${item.label}${dueStr}`, 'normal', isHighlighted))
+      }
+
+      if (items.length > maxVisible) {
+        lines.push(separator())
+        lines.push(line(`${highlighted + 1}/${items.length}`, 'meta'))
+      }
+
+      return { lines }
+    }
+
+    // ── Study mode: no cards ──
     if (!snapshot.front) {
       return {
         lines: [
@@ -11,14 +64,15 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
           line(''),
           line('No cards due!'),
           line(''),
-          line('Add cards on your phone'),
-          line('to start studying.'),
+          line('All caught up.'),
+          separator(),
+          line('Double-tap to go back', 'meta'),
         ],
       }
     }
 
+    // ── Study mode: question ──
     if (!snapshot.revealed) {
-      // Show question side
       return {
         lines: [
           ...glassHeader(`${snapshot.deckName}  (${snapshot.remaining} left)`),
@@ -31,7 +85,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       }
     }
 
-    // Show answer side with rating options
+    // ── Study mode: answer revealed ──
     return {
       lines: [
         ...glassHeader(`${snapshot.deckName}  (${snapshot.remaining} left)`),
@@ -45,10 +99,45 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
   },
 
   action(action, nav, snapshot, ctx) {
+    // ── Deck picker mode ──
+    if (snapshot.mode === 'deckPicker') {
+      const itemCount = snapshot.deckOptions.length + 1 // +1 for "All Decks"
+
+      if (action.type === 'HIGHLIGHT_MOVE') {
+        return {
+          ...nav,
+          highlightedIndex: moveHighlight(nav.highlightedIndex, action.direction, itemCount - 1),
+        }
+      }
+
+      if (action.type === 'SELECT_HIGHLIGHTED') {
+        const idx = nav.highlightedIndex
+        if (idx === 0) {
+          // "All Decks"
+          ctx.selectDeck('')
+        } else {
+          const deck = snapshot.deckOptions[idx - 1]
+          if (deck) ctx.selectDeck(deck.id)
+        }
+        return { ...nav, highlightedIndex: 0 }
+      }
+
+      return nav
+    }
+
+    // ── Study mode ──
+
+    // GO_BACK returns to deck picker
+    if (action.type === 'GO_BACK') {
+      ctx.backToPicker()
+      return { ...nav, highlightedIndex: 0 }
+    }
+
+    // No cards — only back works
     if (!snapshot.front) return nav
 
+    // Question shown — tap to reveal
     if (!snapshot.revealed) {
-      // Any tap reveals the answer
       if (action.type === 'SELECT_HIGHLIGHTED') {
         ctx.reveal()
         return nav
@@ -56,23 +145,20 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       return nav
     }
 
-    // Answer is revealed — rate the card
+    // Answer revealed — rate
     if (action.type === 'HIGHLIGHT_MOVE') {
       if (action.direction === 'up') {
-        // Scroll up = Easy (5)
-        ctx.rate(5)
+        ctx.rate(5) // Easy
         return nav
       }
       if (action.direction === 'down') {
-        // Scroll down = Hard (2)
-        ctx.rate(2)
+        ctx.rate(2) // Hard
         return nav
       }
     }
 
     if (action.type === 'SELECT_HIGHLIGHTED') {
-      // Tap = Good (4)
-      ctx.rate(4)
+      ctx.rate(4) // Good
       return nav
     }
 

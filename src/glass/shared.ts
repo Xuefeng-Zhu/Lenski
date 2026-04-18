@@ -1,6 +1,20 @@
 import type { Rating } from '../types'
 
+export type GlassMode = 'deckPicker' | 'study'
+
+export interface DeckOption {
+  id: string
+  name: string
+  due: number
+}
+
 export interface AppSnapshot {
+  /** Current glass mode */
+  mode: GlassMode
+  /** Available decks for the picker */
+  deckOptions: DeckOption[]
+  /** Currently selected deck ID (empty = all) */
+  selectedDeckId: string
   /** Current card front text, or empty if no cards due */
   front: string
   /** Current card back text */
@@ -22,4 +36,6 @@ export interface AppActions {
   reveal: () => void
   rate: (rating: Rating) => void
   nextCard: () => void
+  selectDeck: (deckId: string) => void
+  backToPicker: () => void
 }
