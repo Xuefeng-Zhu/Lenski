@@ -14,6 +14,13 @@ export interface DeckOption {
   due: number
 }
 
+export interface SessionStats {
+  total: number
+  easy: number
+  good: number
+  hard: number
+}
+
 export interface AppSnapshot {
   /** Current glass mode */
   mode: GlassMode
@@ -31,10 +38,14 @@ export interface AppSnapshot {
   ratingIndex: number
   /** Number of cards remaining in this session */
   remaining: number
+  /** Total cards in this study session */
+  totalCards: number
   /** Deck name for the current card */
   deckName: string
   /** Current card ID (for rating) */
   cardId: string
+  /** Session stats for the completion screen */
+  sessionStats: SessionStats
   /** Flash phase for splash screen */
   flashPhase: boolean
 }

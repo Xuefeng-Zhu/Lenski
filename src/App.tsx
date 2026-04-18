@@ -8,6 +8,7 @@ import { AddCardScreen } from './screens/AddCardScreen'
 import { Settings } from './screens/Settings'
 import { ImportScreen } from './screens/ImportScreen'
 import { StatsScreen } from './screens/StatsScreen'
+import { GenerateScreen } from './screens/GenerateScreen'
 import { AppGlasses } from './glass/AppGlasses'
 
 export function App() {
@@ -20,6 +21,7 @@ export function App() {
           <Route path="/deck/:deckId" element={<DeckDetailScreen />} />
           <Route path="/add" element={<AddCardScreen />} />
           <Route path="/import" element={<ImportScreen />} />
+          <Route path="/generate" element={<GenerateScreen />} />
           <Route path="/stats" element={<StatsScreen />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

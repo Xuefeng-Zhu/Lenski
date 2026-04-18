@@ -1,14 +1,34 @@
-import { useState } from 'react'
-import { SettingsGroup, Card, Button, ListItem, Divider, useDrawerHeader } from 'even-toolkit/web'
+import { useState, useEffect } from 'react'
+import { SettingsGroup, Card, Button, Input, ListItem, Divider, useDrawerHeader } from 'even-toolkit/web'
 import { useFlashcards } from '../contexts/FlashcardContext'
+import { loadAIConfig, saveAIConfig } from '../ai/generate'
 
 export function Settings() {
   const { cards, decks } = useFlashcards()
   const [confirmClear, setConfirmClear] = useState(false)
 
+  // AI config
+  const [aiKey, setAiKey] = useState('')
+  const [aiBaseUrl, setAiBaseUrl] = useState('')
+  const [aiModel, setAiModel] = useState('')
+  const [aiSaved, setAiSaved] = useState(false)
+
+  useEffect(() => {
+    const config = loadAIConfig()
+    setAiKey(config.apiKey)
+    setAiBaseUrl(config.baseUrl)
+    setAiModel(config.model)
+  }, [])
+
   useDrawerHeader({ title: 'Settings', backTo: '/' })
 
   const totalReviewed = cards.filter((c) => c.lastReview > 0).length
+
+  function handleSaveAI() {
+    saveAIConfig({ apiKey: aiKey.trim(), baseUrl: aiBaseUrl.trim(), model: aiModel.trim() })
+    setAiSaved(true)
+    setTimeout(() => setAiSaved(false), 2000)
+  }
 
   function handleExport() {
     const data = JSON.stringify({ decks, cards }, null, 2)
@@ -28,11 +48,49 @@ export function Settings() {
     }
     localStorage.removeItem('lenski-decks')
     localStorage.removeItem('lenski-cards')
+    localStorage.removeItem('lenski-review-logs')
     window.location.reload()
   }
 
   return (
     <main className="px-3 pt-4 pb-8 space-y-6">
+      <SettingsGroup label="AI Generation">
+        <Card className="p-4 space-y-3">
+          <p className="text-[11px] tracking-[-0.11px] text-text-dim">
+            Configure an OpenAI-compatible API to generate flashcard decks with AI.
+            Default: Groq (free tier available at groq.com).
+          </p>
+          <div className="space-y-1.5">
+            <label className="text-[11px] tracking-[-0.11px] text-text-dim block">API Key</label>
+            <Input
+              type="password"
+              value={aiKey}
+              onChange={(e) => setAiKey(e.target.value)}
+              placeholder="gsk_..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] tracking-[-0.11px] text-text-dim block">Base URL</label>
+            <Input
+              value={aiBaseUrl}
+              onChange={(e) => setAiBaseUrl(e.target.value)}
+              placeholder="https://api.groq.com/openai/v1"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] tracking-[-0.11px] text-text-dim block">Model</label>
+            <Input
+              value={aiModel}
+              onChange={(e) => setAiModel(e.target.value)}
+              placeholder="llama-3.3-70b-versatile"
+            />
+          </div>
+          <Button size="sm" onClick={handleSaveAI}>
+            {aiSaved ? '✓ Saved' : 'Save'}
+          </Button>
+        </Card>
+      </SettingsGroup>
+
       <SettingsGroup label="Statistics">
         <Card className="p-4 space-y-1.5">
           <div className="flex items-center justify-between">

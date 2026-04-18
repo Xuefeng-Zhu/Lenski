@@ -54,15 +54,50 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       return { lines }
     }
 
-    // ── Study: no cards ──
+    // ── Study: session complete ──
     if (!snapshot.front) {
+      const s = snapshot.sessionStats
+
+      // No cards were studied — just empty deck
+      if (s.total === 0) {
+        return {
+          lines: [
+            ...glassHeader('LENSKI'),
+            line(''),
+            line('No cards due!'),
+            line(''),
+            line('Add cards on your phone.'),
+            separator(),
+            line('Double-tap to go back', 'meta'),
+          ],
+        }
+      }
+
+      // Session complete with stats
+      const pct = Math.round(((s.easy + s.good) / s.total) * 100)
+
+      // Star rating based on performance
+      const stars = pct >= 90 ? '\u2605\u2605\u2605'
+        : pct >= 70 ? '\u2605\u2605\u2606'
+        : pct >= 50 ? '\u2605\u2606\u2606'
+        : '\u2606\u2606\u2606'
+
+      // Progress bar showing Easy/Good/Hard ratio
+      const barW = 22
+      const easyW = Math.round((s.easy / s.total) * barW)
+      const goodW = Math.round((s.good / s.total) * barW)
+      const hardW = Math.max(0, barW - easyW - goodW)
+      const bar = '\u2588'.repeat(easyW) + '\u2592'.repeat(goodW) + '\u2581'.repeat(hardW)
+
       return {
         lines: [
-          ...glassHeader('LENSKI'),
+          ...glassHeader('Session Complete'),
           line(''),
-          line('No cards due!'),
+          line(`     ${stars}  ${pct}% correct`),
+          line(`     ${s.total} cards reviewed`),
           line(''),
-          line('All caught up.'),
+          line(`  ${bar}`),
+          line(`  \u2588 Easy:${s.easy}  \u2592 Good:${s.good}  \u2581 Hard:${s.hard}`, 'meta'),
           separator(),
           line('Double-tap to go back', 'meta'),
         ],
