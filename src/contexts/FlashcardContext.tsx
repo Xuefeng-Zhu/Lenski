@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
-import type { Flashcard, Deck, Rating } from '../types'
+import type { Flashcard, Deck, Rating, ReviewLog } from '../types'
 import { DEFAULT_EASE_FACTOR, MIN_EASE_FACTOR, DECK_COLORS } from '../types'
 
 interface FlashcardContextValue {
   decks: Deck[]
   cards: Flashcard[]
+  reviewLogs: ReviewLog[]
   addDeck: (name: string) => Deck
   deleteDeck: (id: string) => void
   renameDeck: (id: string, name: string) => void
@@ -21,6 +22,7 @@ const FlashcardContext = createContext<FlashcardContextValue | null>(null)
 
 const DECKS_KEY = 'lenski-decks'
 const CARDS_KEY = 'lenski-cards'
+const LOGS_KEY = 'lenski-review-logs'
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
@@ -148,9 +150,21 @@ function loadCards(): Flashcard[] {
   return generateSampleData().cards
 }
 
+function loadLogs(): ReviewLog[] {
+  try {
+    const raw = localStorage.getItem(LOGS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    }
+  } catch { /* ignore */ }
+  return []
+}
+
 export function FlashcardProvider({ children }: { children: ReactNode }) {
   const [decks, setDecks] = useState<Deck[]>(loadDecks)
   const [cards, setCards] = useState<Flashcard[]>(loadCards)
+  const [reviewLogs, setReviewLogs] = useState<ReviewLog[]>(loadLogs)
 
   useEffect(() => {
     localStorage.setItem(DECKS_KEY, JSON.stringify(decks))
@@ -159,6 +173,10 @@ export function FlashcardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(CARDS_KEY, JSON.stringify(cards))
   }, [cards])
+
+  useEffect(() => {
+    localStorage.setItem(LOGS_KEY, JSON.stringify(reviewLogs))
+  }, [reviewLogs])
 
   const addDeck = useCallback((name: string): Deck => {
     const deck: Deck = {
@@ -209,7 +227,19 @@ export function FlashcardProvider({ children }: { children: ReactNode }) {
       if (c.id !== id) return c
       return { ...c, ...sm2(c, rating) }
     }))
-  }, [])
+    // Log the review
+    const card = cards.find((c) => c.id === id)
+    if (card) {
+      const log: ReviewLog = {
+        id: generateId(),
+        cardId: id,
+        deckId: card.deckId,
+        rating,
+        timestamp: Date.now(),
+      }
+      setReviewLogs((prev) => [log, ...prev])
+    }
+  }, [cards])
 
   const getDueCards = useCallback((deckId?: string): Flashcard[] => {
     const now = Date.now()
@@ -240,6 +270,7 @@ export function FlashcardProvider({ children }: { children: ReactNode }) {
       value={{
         decks,
         cards,
+        reviewLogs,
         addDeck,
         deleteDeck,
         renameDeck,

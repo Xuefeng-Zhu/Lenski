@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { Card, Button, Badge, ScreenHeader, useDrawerHeader } from 'even-toolkit/web'
 import { useFlashcards } from '../contexts/FlashcardContext'
@@ -13,6 +13,9 @@ export function StudyScreen() {
   const [showAnswer, setShowAnswer] = useState(false)
   const [cardIndex, setCardIndex] = useState(0)
 
+  // Session tracking
+  const sessionRef = useRef<{ total: number; correct: number; ratings: Rating[] }>({ total: 0, correct: 0, ratings: [] })
+
   const dueCards = useMemo(
     () => getDueCards(selectedDeck ?? undefined),
     [getDueCards, selectedDeck],
@@ -26,9 +29,10 @@ export function StudyScreen() {
   const handleRate = useCallback((rating: Rating) => {
     if (!currentCard) return
     reviewCard(currentCard.id, rating)
+    sessionRef.current.total++
+    if (rating >= 3) sessionRef.current.correct++
+    sessionRef.current.ratings.push(rating)
     setShowAnswer(false)
-    // Stay at same index — the reviewed card drops out of dueCards on next render
-    // If we were at the end, the list shrinks and cardIndex will be clamped
     setCardIndex((prev) => Math.min(prev, Math.max(0, dueCards.length - 2)))
   }, [currentCard, reviewCard, dueCards.length])
 
@@ -90,6 +94,9 @@ export function StudyScreen() {
 
   // No cards due
   if (!currentCard) {
+    const session = sessionRef.current
+    const accuracy = session.total > 0 ? Math.round((session.correct / session.total) * 100) : 0
+
     return (
       <main className="px-3 pt-4 pb-8 space-y-3">
         <ScreenHeader
@@ -98,12 +105,39 @@ export function StudyScreen() {
         />
         <Card className="p-4 space-y-3 text-center">
           <p className="text-[40px]">🎉</p>
-          <p className="text-[13px] tracking-[-0.13px] text-text-dim">
-            Great job! Come back later for more reviews.
-          </p>
-          <Button className="w-full" onClick={() => { setSelectedDeck(null); setCardIndex(0) }}>
-            Back to Decks
-          </Button>
+          {session.total > 0 ? (
+            <>
+              <p className="text-[15px] tracking-[-0.15px] text-text">
+                Reviewed {session.total} card{session.total !== 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center justify-around">
+                <div>
+                  <p className="text-[20px] tracking-[-0.2px] text-positive">{accuracy}%</p>
+                  <p className="text-[11px] tracking-[-0.11px] text-text-dim">Accuracy</p>
+                </div>
+                <div>
+                  <p className="text-[20px] tracking-[-0.2px] text-accent">{session.correct}</p>
+                  <p className="text-[11px] tracking-[-0.11px] text-text-dim">Correct</p>
+                </div>
+                <div>
+                  <p className="text-[20px] tracking-[-0.2px] text-negative">{session.total - session.correct}</p>
+                  <p className="text-[11px] tracking-[-0.11px] text-text-dim">Missed</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-[13px] tracking-[-0.13px] text-text-dim">
+              Great job! Come back later for more reviews.
+            </p>
+          )}
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => { setSelectedDeck(null); setCardIndex(0); sessionRef.current = { total: 0, correct: 0, ratings: [] } }}>
+              Back to Decks
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/stats')}>
+              View Stats
+            </Button>
+          </div>
         </Card>
       </main>
     )

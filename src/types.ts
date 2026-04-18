@@ -45,3 +45,12 @@ export const DECK_COLORS = [
 
 export const DEFAULT_EASE_FACTOR = 2.5
 export const MIN_EASE_FACTOR = 1.3
+
+/** A single review event, logged for study tracking */
+export interface ReviewLog {
+  id: string
+  cardId: string
+  deckId: string
+  rating: Rating
+  timestamp: number
+}
