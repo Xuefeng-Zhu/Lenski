@@ -1,5 +1,3 @@
-import type { Rating } from '../types'
-
 export type GlassMode = 'deckPicker' | 'study'
 
 export interface DeckOption {
@@ -34,7 +32,8 @@ export interface AppSnapshot {
 export interface AppActions {
   navigate: (path: string) => void
   reveal: () => void
-  rate: (rating: Rating) => void
+  flipCard: () => void
+  prevCard: () => void
   nextCard: () => void
   selectDeck: (deckId: string) => void
   backToPicker: () => void

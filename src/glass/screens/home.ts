@@ -28,7 +28,6 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
 
       const maxVisible = 6
       const highlighted = nav.highlightedIndex
-      // Scroll window
       let scrollTop = 0
       if (highlighted >= maxVisible) {
         scrollTop = highlighted - maxVisible + 1
@@ -71,7 +70,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       }
     }
 
-    // ── Study mode: question ──
+    // ── Study mode: showing front ──
     if (!snapshot.revealed) {
       return {
         lines: [
@@ -80,12 +79,12 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
           ...wrapText(snapshot.front, 34).map((l) => line(l)),
           line(''),
           separator(),
-          line('Tap to reveal answer', 'meta'),
+          line('Tap: flip  \u2191\u2193 prev/next', 'meta'),
         ],
       }
     }
 
-    // ── Study mode: answer revealed ──
+    // ── Study mode: showing back ──
     return {
       lines: [
         ...glassHeader(`${snapshot.deckName}  (${snapshot.remaining} left)`),
@@ -93,7 +92,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
         ...wrapText(snapshot.back, 34).map((l) => line(l)),
         line(''),
         separator(),
-        line('\u2191 Easy  Tap: Good  \u2193 Hard', 'meta'),
+        line('Tap: flip  \u2191\u2193 prev/next', 'meta'),
       ],
     }
   },
@@ -101,7 +100,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
   action(action, nav, snapshot, ctx) {
     // ── Deck picker mode ──
     if (snapshot.mode === 'deckPicker') {
-      const itemCount = snapshot.deckOptions.length + 1 // +1 for "All Decks"
+      const itemCount = snapshot.deckOptions.length + 1
 
       if (action.type === 'HIGHLIGHT_MOVE') {
         return {
@@ -113,7 +112,6 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       if (action.type === 'SELECT_HIGHLIGHTED') {
         const idx = nav.highlightedIndex
         if (idx === 0) {
-          // "All Decks"
           ctx.selectDeck('')
         } else {
           const deck = snapshot.deckOptions[idx - 1]
@@ -127,38 +125,26 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
 
     // ── Study mode ──
 
-    // GO_BACK returns to deck picker
     if (action.type === 'GO_BACK') {
       ctx.backToPicker()
       return { ...nav, highlightedIndex: 0 }
     }
 
-    // No cards — only back works
     if (!snapshot.front) return nav
 
-    // Question shown — tap to reveal
-    if (!snapshot.revealed) {
-      if (action.type === 'SELECT_HIGHLIGHTED') {
-        ctx.reveal()
-        return nav
-      }
+    // Tap = flip card (toggle front/back)
+    if (action.type === 'SELECT_HIGHLIGHTED') {
+      ctx.flipCard()
       return nav
     }
 
-    // Answer revealed — rate
+    // Up/Down = move between cards
     if (action.type === 'HIGHLIGHT_MOVE') {
       if (action.direction === 'up') {
-        ctx.rate(5) // Easy
-        return nav
+        ctx.prevCard()
+      } else {
+        ctx.nextCard()
       }
-      if (action.direction === 'down') {
-        ctx.rate(2) // Hard
-        return nav
-      }
-    }
-
-    if (action.type === 'SELECT_HIGHLIGHTED') {
-      ctx.rate(4) // Good
       return nav
     }
 

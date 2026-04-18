@@ -6,7 +6,6 @@ import { createScreenMapper, getHomeTiles } from 'even-toolkit/glass-router'
 import { appSplash } from './splash'
 import { toDisplayData, onGlassAction, type AppSnapshot } from './selectors'
 import type { AppActions, GlassMode } from './shared'
-import type { Rating } from '../types'
 import { useFlashcards } from '../contexts/FlashcardContext'
 
 const deriveScreen = createScreenMapper([
@@ -32,7 +31,6 @@ export function AppGlasses() {
     ? (decks.find((d) => d.id === currentCard.deckId)?.name ?? 'Cards')
     : (selectedDeckId ? (decks.find((d) => d.id === selectedDeckId)?.name ?? 'Cards') : 'All Decks')
 
-  // Build deck options for the picker
   const deckOptions = useMemo(() =>
     decks.map((d) => ({
       id: d.id,
@@ -46,6 +44,10 @@ export function AppGlasses() {
     current: null as AppSnapshot | null,
   }), [])
 
+  // Track whether the current card was revealed so we can auto-rate on move
+  const wasRevealedRef = useRef(false)
+  wasRevealedRef.current = revealed
+
   const snapshot: AppSnapshot = {
     mode,
     deckOptions,
@@ -53,7 +55,7 @@ export function AppGlasses() {
     front: currentCard?.front ?? '',
     back: currentCard?.back ?? '',
     revealed,
-    remaining: mode === 'study' ? dueCards.length - cardIndex : 0,
+    remaining: mode === 'study' ? Math.max(0, dueCards.length - cardIndex) : 0,
     deckName,
     cardId: currentCard?.id ?? '',
     flashPhase,
@@ -62,21 +64,29 @@ export function AppGlasses() {
 
   const getSnapshot = useCallback(() => snapshotRef.current!, [snapshotRef])
 
-  const handleReveal = useCallback(() => {
-    setRevealed(true)
+  // Flip = toggle front/back
+  const handleFlipCard = useCallback(() => {
+    setRevealed((prev) => !prev)
   }, [])
 
-  const handleRate = useCallback((rating: Rating) => {
-    if (!currentCard) return
-    reviewCard(currentCard.id, rating)
+  // Keep a ref alias so we don't need reveal() separately
+  const handleReveal = handleFlipCard
+
+  // Auto-rate the current card as "Good" (4) if it was revealed, then move
+  const autoRateAndMove = useCallback((direction: 'next' | 'prev') => {
+    if (wasRevealedRef.current && currentCard) {
+      reviewCard(currentCard.id, 4) // auto-rate Good
+    }
     setRevealed(false)
-    setCardIndex((prev) => Math.min(prev, Math.max(0, dueCards.length - 2)))
+    if (direction === 'next') {
+      setCardIndex((prev) => Math.min(prev + 1, dueCards.length - 1))
+    } else {
+      setCardIndex((prev) => Math.max(prev - 1, 0))
+    }
   }, [currentCard, reviewCard, dueCards.length])
 
-  const handleNextCard = useCallback(() => {
-    setRevealed(false)
-    setCardIndex((prev) => Math.min(prev + 1, dueCards.length - 1))
-  }, [dueCards.length])
+  const handleNextCard = useCallback(() => autoRateAndMove('next'), [autoRateAndMove])
+  const handlePrevCard = useCallback(() => autoRateAndMove('prev'), [autoRateAndMove])
 
   const handleSelectDeck = useCallback((deckId: string) => {
     setSelectedDeckId(deckId)
@@ -86,16 +96,21 @@ export function AppGlasses() {
   }, [])
 
   const handleBackToPicker = useCallback(() => {
+    // Auto-rate current card if revealed before leaving
+    if (wasRevealedRef.current && currentCard) {
+      reviewCard(currentCard.id, 4)
+    }
     setMode('deckPicker')
     setSelectedDeckId('')
     setCardIndex(0)
     setRevealed(false)
-  }, [])
+  }, [currentCard, reviewCard])
 
   const ctxRef = useRef<AppActions>({
     navigate,
     reveal: handleReveal,
-    rate: handleRate,
+    flipCard: handleFlipCard,
+    prevCard: handlePrevCard,
     nextCard: handleNextCard,
     selectDeck: handleSelectDeck,
     backToPicker: handleBackToPicker,
@@ -103,7 +118,8 @@ export function AppGlasses() {
   ctxRef.current = {
     navigate,
     reveal: handleReveal,
-    rate: handleRate,
+    flipCard: handleFlipCard,
+    prevCard: handlePrevCard,
     nextCard: handleNextCard,
     selectDeck: handleSelectDeck,
     backToPicker: handleBackToPicker,
