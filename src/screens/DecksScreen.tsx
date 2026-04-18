@@ -117,9 +117,20 @@ export function DecksScreen() {
       {decks.length === 0 && !showCreate && (
         <Card className="p-4 text-center space-y-3">
           <p className="text-[13px] tracking-[-0.13px] text-text-dim">
-            No decks yet. Create your first deck to start adding flashcards.
+            No decks yet. Create your first deck or import from Anki.
           </p>
-          <Button onClick={() => setShowCreate(true)}>Create Deck</Button>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => setShowCreate(true)}>Create Deck</Button>
+            <Button variant="secondary" onClick={() => navigate('/import')}>Import APKG</Button>
+          </div>
+        </Card>
+      )}
+
+      {decks.length > 0 && (
+        <Card className="p-4">
+          <Button className="w-full" variant="secondary" onClick={() => navigate('/import')}>
+            Import from Anki (.apkg)
+          </Button>
         </Card>
       )}
     </main>
