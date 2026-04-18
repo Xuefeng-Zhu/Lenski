@@ -1,4 +1,12 @@
+import type { Rating } from '../types'
+
 export type GlassMode = 'deckPicker' | 'study'
+
+/** Card study phase: front → back → rating */
+export type StudyPhase = 'front' | 'back' | 'rating'
+
+export const GLASS_RATINGS: Rating[] = [2, 4, 5]  // Hard, Good, Easy
+export const GLASS_RATING_LABELS: Record<number, string> = { 2: 'Hard', 4: 'Good', 5: 'Easy' }
 
 export interface DeckOption {
   id: string
@@ -17,8 +25,10 @@ export interface AppSnapshot {
   front: string
   /** Current card back text */
   back: string
-  /** Whether the answer is currently revealed */
-  revealed: boolean
+  /** Current study phase */
+  phase: StudyPhase
+  /** Index into GLASS_RATINGS for the currently highlighted rating */
+  ratingIndex: number
   /** Number of cards remaining in this session */
   remaining: number
   /** Deck name for the current card */
@@ -31,8 +41,11 @@ export interface AppSnapshot {
 
 export interface AppActions {
   navigate: (path: string) => void
-  reveal: () => void
-  flipCard: () => void
+  flipToBack: () => void
+  flipToFront: () => void
+  enterRating: () => void
+  cycleRating: () => void
+  confirmRating: (direction: 'next' | 'prev') => void
   prevCard: () => void
   nextCard: () => void
   selectDeck: (deckId: string) => void

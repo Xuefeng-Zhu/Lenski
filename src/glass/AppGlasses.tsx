@@ -5,7 +5,8 @@ import { useFlashPhase } from 'even-toolkit/useFlashPhase'
 import { createScreenMapper, getHomeTiles } from 'even-toolkit/glass-router'
 import { appSplash } from './splash'
 import { toDisplayData, onGlassAction, type AppSnapshot } from './selectors'
-import type { AppActions, GlassMode } from './shared'
+import type { AppActions, GlassMode, StudyPhase } from './shared'
+import { GLASS_RATINGS } from './shared'
 import { useFlashcards } from '../contexts/FlashcardContext'
 
 const deriveScreen = createScreenMapper([
@@ -22,7 +23,8 @@ export function AppGlasses() {
 
   const [mode, setMode] = useState<GlassMode>('deckPicker')
   const [selectedDeckId, setSelectedDeckId] = useState('')
-  const [revealed, setRevealed] = useState(false)
+  const [phase, setPhase] = useState<StudyPhase>('front')
+  const [ratingIndex, setRatingIndex] = useState(1) // default to Good
   const [cardIndex, setCardIndex] = useState(0)
 
   const dueCards = getDueCards(selectedDeckId || undefined)
@@ -44,9 +46,9 @@ export function AppGlasses() {
     current: null as AppSnapshot | null,
   }), [])
 
-  // Track whether the current card was revealed so we can auto-rate on move
-  const wasRevealedRef = useRef(false)
-  wasRevealedRef.current = revealed
+  // Track phase in a ref for callbacks
+  const phaseRef = useRef<StudyPhase>(phase)
+  phaseRef.current = phase
 
   const snapshot: AppSnapshot = {
     mode,
@@ -54,7 +56,8 @@ export function AppGlasses() {
     selectedDeckId,
     front: currentCard?.front ?? '',
     back: currentCard?.back ?? '',
-    revealed,
+    phase,
+    ratingIndex,
     remaining: mode === 'study' ? Math.max(0, dueCards.length - cardIndex) : 0,
     deckName,
     cardId: currentCard?.id ?? '',
@@ -64,52 +67,88 @@ export function AppGlasses() {
 
   const getSnapshot = useCallback(() => snapshotRef.current!, [snapshotRef])
 
-  // Flip = toggle front/back
-  const handleFlipCard = useCallback(() => {
-    setRevealed((prev) => !prev)
+  // ── Study actions ──
+
+  const handleFlipToBack = useCallback(() => {
+    setPhase('back')
   }, [])
 
-  // Keep a ref alias so we don't need reveal() separately
-  const handleReveal = handleFlipCard
+  const handleFlipToFront = useCallback(() => {
+    setPhase('front')
+  }, [])
 
-  // Auto-rate the current card as "Good" (4) if it was revealed, then move
-  const autoRateAndMove = useCallback((direction: 'next' | 'prev') => {
-    if (wasRevealedRef.current && currentCard) {
-      reviewCard(currentCard.id, 4) // auto-rate Good
+  const handleEnterRating = useCallback(() => {
+    setRatingIndex(1) // default to Good
+    setPhase('rating')
+  }, [])
+
+  const handleCycleRating = useCallback(() => {
+    setRatingIndex((prev) => (prev + 1) % GLASS_RATINGS.length)
+  }, [])
+
+  const handleConfirmRating = useCallback((direction: 'next' | 'prev') => {
+    // Rate the current card with the selected rating
+    if (currentCard) {
+      reviewCard(currentCard.id, GLASS_RATINGS[ratingIndex])
     }
-    setRevealed(false)
+    // Move to next/prev card, reset to front
+    setPhase('front')
+    setRatingIndex(1)
     if (direction === 'next') {
       setCardIndex((prev) => Math.min(prev + 1, dueCards.length - 1))
     } else {
       setCardIndex((prev) => Math.max(prev - 1, 0))
     }
+  }, [currentCard, reviewCard, ratingIndex, dueCards.length])
+
+  // Browse (up/down on front or back) — auto-rate Good if on back
+  const handleNextCard = useCallback(() => {
+    if (phaseRef.current === 'back' && currentCard) {
+      reviewCard(currentCard.id, 4) // auto-rate Good
+    }
+    setPhase('front')
+    setRatingIndex(1)
+    setCardIndex((prev) => Math.min(prev + 1, dueCards.length - 1))
   }, [currentCard, reviewCard, dueCards.length])
 
-  const handleNextCard = useCallback(() => autoRateAndMove('next'), [autoRateAndMove])
-  const handlePrevCard = useCallback(() => autoRateAndMove('prev'), [autoRateAndMove])
+  const handlePrevCard = useCallback(() => {
+    if (phaseRef.current === 'back' && currentCard) {
+      reviewCard(currentCard.id, 4) // auto-rate Good
+    }
+    setPhase('front')
+    setRatingIndex(1)
+    setCardIndex((prev) => Math.max(prev - 1, 0))
+  }, [currentCard, reviewCard])
+
+  // ── Deck actions ──
 
   const handleSelectDeck = useCallback((deckId: string) => {
     setSelectedDeckId(deckId)
     setCardIndex(0)
-    setRevealed(false)
+    setPhase('front')
+    setRatingIndex(1)
     setMode('study')
   }, [])
 
   const handleBackToPicker = useCallback(() => {
-    // Auto-rate current card if revealed before leaving
-    if (wasRevealedRef.current && currentCard) {
+    // Auto-rate if leaving from back phase
+    if (phaseRef.current === 'back' && currentCard) {
       reviewCard(currentCard.id, 4)
     }
     setMode('deckPicker')
     setSelectedDeckId('')
     setCardIndex(0)
-    setRevealed(false)
+    setPhase('front')
+    setRatingIndex(1)
   }, [currentCard, reviewCard])
 
   const ctxRef = useRef<AppActions>({
     navigate,
-    reveal: handleReveal,
-    flipCard: handleFlipCard,
+    flipToBack: handleFlipToBack,
+    flipToFront: handleFlipToFront,
+    enterRating: handleEnterRating,
+    cycleRating: handleCycleRating,
+    confirmRating: handleConfirmRating,
     prevCard: handlePrevCard,
     nextCard: handleNextCard,
     selectDeck: handleSelectDeck,
@@ -117,8 +156,11 @@ export function AppGlasses() {
   })
   ctxRef.current = {
     navigate,
-    reveal: handleReveal,
-    flipCard: handleFlipCard,
+    flipToBack: handleFlipToBack,
+    flipToFront: handleFlipToFront,
+    enterRating: handleEnterRating,
+    cycleRating: handleCycleRating,
+    confirmRating: handleConfirmRating,
     prevCard: handlePrevCard,
     nextCard: handleNextCard,
     selectDeck: handleSelectDeck,
@@ -143,8 +185,6 @@ export function AppGlasses() {
     appName: 'LENSKI',
     splash: appSplash,
     getPageMode: (screen) => {
-      // In study mode, use 'text' so GO_BACK reaches our handler
-      // In deck picker, use 'home' so double-tap triggers the exit dialogue
       if (screen === 'home' && modeRef.current === 'study') return 'text'
       return screen === 'home' ? 'home' : 'text'
     },

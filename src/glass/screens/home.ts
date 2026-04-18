@@ -2,10 +2,11 @@ import type { GlassScreen } from 'even-toolkit/glass-screen-router'
 import { line, separator, glassHeader } from 'even-toolkit/types'
 import { moveHighlight } from 'even-toolkit/glass-nav'
 import type { AppSnapshot, AppActions } from '../shared'
+import { GLASS_RATINGS, GLASS_RATING_LABELS } from '../shared'
 
 export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
   display(snapshot, nav) {
-    // ── Deck picker mode ──
+    // ── Deck picker ──
     if (snapshot.mode === 'deckPicker') {
       const options = snapshot.deckOptions
       if (options.length === 0) {
@@ -34,9 +35,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       }
       const visible = items.slice(scrollTop, scrollTop + maxVisible)
 
-      const lines = [
-        ...glassHeader('LENSKI  Select Deck'),
-      ]
+      const lines = [...glassHeader('LENSKI  Select Deck')]
 
       for (let i = 0; i < visible.length; i++) {
         const item = visible[i]
@@ -55,7 +54,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       return { lines }
     }
 
-    // ── Study mode: no cards ──
+    // ── Study: no cards ──
     if (!snapshot.front) {
       return {
         lines: [
@@ -70,8 +69,8 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       }
     }
 
-    // ── Study mode: showing front ──
-    if (!snapshot.revealed) {
+    // ── Study: front ──
+    if (snapshot.phase === 'front') {
       return {
         lines: [
           ...glassHeader(`${snapshot.deckName}  (${snapshot.remaining} left)`),
@@ -79,26 +78,48 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
           ...wrapText(snapshot.front, 34).map((l) => line(l)),
           line(''),
           separator(),
-          line('Tap: flip  \u2191\u2193 prev/next', 'meta'),
+          line('Tap: flip  \u2191\u2193 browse', 'meta'),
         ],
       }
     }
 
-    // ── Study mode: showing back ──
+    // ── Study: back ──
+    if (snapshot.phase === 'back') {
+      return {
+        lines: [
+          ...glassHeader(`${snapshot.deckName}  (${snapshot.remaining} left)`),
+          line(''),
+          ...wrapText(snapshot.back, 34).map((l) => line(l)),
+          line(''),
+          separator(),
+          line('Tap: rate  \u2191\u2193 browse', 'meta'),
+        ],
+      }
+    }
+
+    // ── Study: rating ──
+    const ratingLine = GLASS_RATINGS.map((r, i) => {
+      const label = GLASS_RATING_LABELS[r]
+      return i === snapshot.ratingIndex ? `[\u25B6${label}]` : ` ${label} `
+    }).join('  ')
+
     return {
       lines: [
         ...glassHeader(`${snapshot.deckName}  (${snapshot.remaining} left)`),
         line(''),
+        ...wrapText(snapshot.front, 34).map((l) => line(l, 'meta')),
+        separator(),
         ...wrapText(snapshot.back, 34).map((l) => line(l)),
         line(''),
         separator(),
-        line('Tap: flip  \u2191\u2193 prev/next', 'meta'),
+        line(ratingLine),
+        line('Tap: cycle  \u2191\u2193 confirm & move', 'meta'),
       ],
     }
   },
 
   action(action, nav, snapshot, ctx) {
-    // ── Deck picker mode ──
+    // ── Deck picker ──
     if (snapshot.mode === 'deckPicker') {
       const itemCount = snapshot.deckOptions.length + 1
 
@@ -123,7 +144,7 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
       return nav
     }
 
-    // ── Study mode ──
+    // ── Study ──
 
     if (action.type === 'GO_BACK') {
       ctx.backToPicker()
@@ -132,18 +153,44 @@ export const homeScreen: GlassScreen<AppSnapshot, AppActions> = {
 
     if (!snapshot.front) return nav
 
-    // Tap = flip card (toggle front/back)
-    if (action.type === 'SELECT_HIGHLIGHTED') {
-      ctx.flipCard()
+    // ── Front phase ──
+    if (snapshot.phase === 'front') {
+      if (action.type === 'SELECT_HIGHLIGHTED') {
+        ctx.flipToBack()
+        return nav
+      }
+      if (action.type === 'HIGHLIGHT_MOVE') {
+        if (action.direction === 'down') ctx.nextCard()
+        else ctx.prevCard()
+        return nav
+      }
       return nav
     }
 
-    // Up/Down = move between cards
-    if (action.type === 'HIGHLIGHT_MOVE') {
-      if (action.direction === 'up') {
-        ctx.prevCard()
-      } else {
-        ctx.nextCard()
+    // ── Back phase ──
+    if (snapshot.phase === 'back') {
+      if (action.type === 'SELECT_HIGHLIGHTED') {
+        ctx.enterRating()
+        return nav
+      }
+      if (action.type === 'HIGHLIGHT_MOVE') {
+        // Browse without rating — auto-rate Good
+        if (action.direction === 'down') ctx.nextCard()
+        else ctx.prevCard()
+        return nav
+      }
+      return nav
+    }
+
+    // ── Rating phase ──
+    if (snapshot.phase === 'rating') {
+      if (action.type === 'SELECT_HIGHLIGHTED') {
+        ctx.cycleRating()
+        return nav
+      }
+      if (action.type === 'HIGHLIGHT_MOVE') {
+        ctx.confirmRating(action.direction === 'down' ? 'next' : 'prev')
+        return nav
       }
       return nav
     }
