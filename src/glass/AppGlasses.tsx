@@ -131,6 +131,10 @@ export function AppGlasses() {
     [],
   )
 
+  // Track current glass mode so getPageMode can switch behavior
+  const modeRef = useRef<GlassMode>(mode)
+  modeRef.current = mode
+
   useGlasses({
     getSnapshot,
     toDisplayData,
@@ -138,7 +142,12 @@ export function AppGlasses() {
     deriveScreen,
     appName: 'LENSKI',
     splash: appSplash,
-    getPageMode: (screen) => screen === 'home' ? 'home' : 'text',
+    getPageMode: (screen) => {
+      // In study mode, use 'text' so GO_BACK reaches our handler
+      // In deck picker, use 'home' so double-tap triggers the exit dialogue
+      if (screen === 'home' && modeRef.current === 'study') return 'text'
+      return screen === 'home' ? 'home' : 'text'
+    },
     homeImageTiles: homeTiles,
   })
 
